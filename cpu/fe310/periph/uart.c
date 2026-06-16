@@ -73,6 +73,7 @@ static void _drain(uart_t dev)
 int uart_init(uart_t dev, uint32_t baudrate, uart_rx_cb_t rx_cb, void *arg)
 {
     uint32_t uartDiv;
+    unsigned irq_state = irq_disable();
 
     /* Check for valid UART dev */
     assert(dev < UART_NUMOF);
@@ -105,9 +106,6 @@ int uart_init(uart_t dev, uint32_t baudrate, uart_rx_cb_t rx_cb, void *arg)
         /* Enable IOF */
         GPIO_REG(GPIO_IOF_EN) |= (1 << uart_config[dev].rx);
 
-        /* Disable ext interrupts when setting up */
-        clear_csr(mie, MIP_MEIP);
-
         /* Configure UART ISR with PLIC */
         plic_set_isr_cb(uart_config[dev].isr_num, uart_isr);
         plic_enable_interrupt(uart_config[dev].isr_num);
@@ -122,10 +120,9 @@ int uart_init(uart_t dev, uint32_t baudrate, uart_rx_cb_t rx_cb, void *arg)
         /* Enable RX */
         _REG32(uart_config[dev].addr, UART_REG_RXCTRL) = UART_RXEN;
 
-        /* Re-enable ext interrupts */
-        set_csr(mie, MIP_MEIP);
     }
 
+    irq_restore(irq_state);
     return UART_OK;
 }
 
