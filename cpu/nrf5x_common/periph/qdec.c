@@ -18,6 +18,7 @@
 #include <errno.h>
 
 #include "cpu.h"
+#include "irq.h"
 #include "periph_conf.h"
 #include "periph/qdec.h"
 #include "periph/gpio.h"
@@ -51,17 +52,12 @@ int32_t qdec_init(qdec_t qdec, qdec_mode_t mode, qdec_cb_t cb, void *arg)
         return -EINVAL;
     }
 
+    unsigned irq_state = irq_disable();
+    NVIC_DisableIRQ(QDEC_IRQn);
+    dev(qdec)->INTENCLR = QDEC_INTENCLR_ACCOF_Msk;
+
     isr_ctx[qdec].cb = cb;
     isr_ctx[qdec].arg = arg;
-
-    if (cb) {
-        NVIC_EnableIRQ(QDEC_IRQn);
-        dev(qdec)->INTENSET = QDEC_INTENSET_ACCOF_Msk;
-    }
-    else {
-        NVIC_DisableIRQ(QDEC_IRQn);
-        dev(qdec)->INTENCLR = QDEC_INTENCLR_ACCOF_Msk;
-    }
 
     gpio_init(conf(qdec)->a_pin, GPIO_IN_PU);
     gpio_init(conf(qdec)->b_pin, GPIO_IN_PU);
@@ -78,7 +74,14 @@ int32_t qdec_init(qdec_t qdec, qdec_mode_t mode, qdec_cb_t cb, void *arg)
 
     /* Enable the peripheral */
     dev(qdec)->ENABLE = 1;
+
+    if (cb) {
+        dev(qdec)->INTENSET = QDEC_INTENSET_ACCOF_Msk;
+        NVIC_EnableIRQ(QDEC_IRQn);
+    }
+
     dev(qdec)->TASKS_START = 1;
+    irq_restore(irq_state);
     return 0;
 }
 
